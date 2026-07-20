@@ -686,8 +686,8 @@ const ICN = {
 const API_BASE = 'https://carvia-4hq7.onrender.com/api';
 const API_TIMEOUT_MS = 7000;
 
-let authToken = null;   // kept in memory only — resets on page refresh, by design
-let currentUser = null;
+let authToken = localStorage.getItem('carvia_token') || null;   // kept in memory only — resets on page refresh, by design
+let currentUser = JSON.parse(localStorage.getItem('carvia_user') || 'null');
 let apiOnline = false;
 
 async function apiFetch(path, {method='GET', body=null, auth=false, timeout=API_TIMEOUT_MS} = {}){
@@ -940,7 +940,7 @@ async function doLogin(){
   if(!email || !pass){ toast('Enter your email and password'); return; }
   try{
     const data = await apiFetch('/auth/login', {method:'POST', body:{email, password:pass}});
-    authToken = data.token; currentUser = data.user;
+    saveSession(data.token, data.user);
     closeModal('authModal'); renderNavActions();
     toast('Welcome back, '+currentUser.firstName);
     navigate('dashboard');
@@ -960,7 +960,7 @@ async function demoLogin(){
         data = await apiFetch('/auth/login', {method:'POST', body:{email, password}});
       } else { throw err; }
     }
-    authToken = data.token; currentUser = data.user;
+    saveSession(data.token, data.user);
     closeModal('authModal'); renderNavActions();
     toast('Signed in as Demo User');
     navigate('dashboard');
@@ -976,14 +976,24 @@ async function doRegister(){
   if(password.length < 6){ toast('Password must be at least 6 characters'); return; }
   try{
     const data = await apiFetch('/auth/register', {method:'POST', body:{firstName,lastName,email,phone,password}});
-    authToken = data.token; currentUser = data.user;
+    saveSession(data.token, data.user);
     closeModal('authModal'); renderNavActions();
     toast('Account created — welcome, '+firstName+'!');
     navigate('dashboard');
   }catch(err){ toast(friendlyError(err, 'Could not create your account')); }
 }
-function logout(){
+function saveSession(token, user){
+  authToken = token; currentUser = user;
+  localStorage.setItem('carvia_token', token);
+  localStorage.setItem('carvia_user', JSON.stringify(user));
+}
+function clearSession(){
   authToken = null; currentUser = null;
+  localStorage.removeItem('carvia_token');
+  localStorage.removeItem('carvia_user');
+}
+function logout(){
+  clearSession();
   renderNavActions(); navigate('home');
   toast('Logged out');
 }
@@ -1511,7 +1521,7 @@ async function adminLogin(){
   try{
     const data = await apiFetch('/auth/login', {method:'POST', body:{email, password:pass}});
     if(!data.user.isAdmin){ toast('This account does not have admin access'); return; }
-    authToken = data.token; currentUser = data.user;
+    saveSession(data.token, data.user);
     renderNavActions(); renderAdmin();
     toast('Signed in as Admin');
   }catch(err){ toast(friendlyError(err, 'Incorrect admin email or password')); }
